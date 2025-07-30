@@ -43,7 +43,7 @@ import { Loyalty } from './entities/loyalty.entity';
         Review,
         Loyalty,
       ],
-      synchronize: true, // use migrations or schema sync in dev only
+      synchronize: false, 
       autoLoadEntities: true,
     }),
     AuthModule,
