@@ -69,33 +69,60 @@ export class TableService {
     return this.tableRepo.save(table);
   }
 
-  async update(id: number, data: TableEntity) {
-    const table = await this.tableRepo.findOneBy({ id });
-    if (!table) throw new NotFoundException('Стол не найден');
+ async update(id: number, data: TableEntity) {
+  const table = await this.tableRepo.findOneBy({ id });
+  if (!table) throw new NotFoundException('Стол не найден');
 
-    if (data.status === TableStatusEnum.RESERVED && data.reservation_time) {
-      const now = new Date();
-      const existingTime = table.reservation_time
-        ? new Date(table.reservation_time)
-        : null;
+  if (data.status === TableStatusEnum.RESERVED && data.reservation_time) {
+    const now = new Date();
+    const existingTime = table.reservation_time
+      ? new Date(table.reservation_time)
+      : null;
 
-      if (
-        table.status === TableStatusEnum.RESERVED &&
-        existingTime &&
-        existingTime > now
-      ) {
-        throw new ConflictException('Стол уже забронирован');
-      }
+    if (
+      table.status === TableStatusEnum.RESERVED &&
+      existingTime &&
+      existingTime > now
+    ) {
+      throw new ConflictException('Стол уже забронирован');
     }
-
-    // Transform reservation_duration to match PostgreSQL interval format
-    if (data.reservation_duration) {
-      data.reservation_duration = `PT${data.reservation_duration}`; // Assuming duration is in ISO 8601 format
-    }
-
-    await this.tableRepo.update(id, data);
-    return this.tableRepo.findOneBy({ id });
   }
+
+  // Преобразование reservation_duration в формат PostgreSQL interval
+  if (data.reservation_duration) {
+    if (typeof data.reservation_duration === 'string') {
+      // Ожидается формат HH:MM:SS или HH:MM
+      const duration = data.reservation_duration;
+      const [hoursStr = '0', minutesStr = '0', secondsStr = '0'] = duration.split(':');
+      const hours = parseInt(hoursStr, 10);
+      const minutes = parseInt(minutesStr, 10);
+      const seconds = parseInt(secondsStr, 10);
+
+      const parts = [];
+      if (hours) parts.push(`${hours} hour${hours !== 1 ? 's' : ''}`);
+      if (minutes) parts.push(`${minutes} minute${minutes !== 1 ? 's' : ''}`);
+      if (seconds) parts.push(`${seconds} second${seconds !== 1 ? 's' : ''}`);
+
+      data.reservation_duration = parts.join(' ');
+    } else if (typeof data.reservation_duration === 'object') {
+      // Если передан объект {hours, minutes, seconds}
+      const dur = data.reservation_duration as { hours?: number; minutes?: number; seconds?: number };
+      const parts = [];
+      if (dur.hours) parts.push(`${dur.hours} hour${dur.hours !== 1 ? 's' : ''}`);
+      if (dur.minutes) parts.push(`${dur.minutes} minute${dur.minutes !== 1 ? 's' : ''}`);
+      if (dur.seconds) parts.push(`${dur.seconds} second${dur.seconds !== 1 ? 's' : ''}`);
+
+      data.reservation_duration = parts.join(' ');
+    } else {
+      // Можно бросить ошибку или просто не менять поле
+      throw new ConflictException('Неподдерживаемый формат reservation_duration');
+    }
+  }
+
+  await this.tableRepo.update(id, data);
+  return this.tableRepo.findOneBy({ id });
+}
+
 
   async remove(id: number) {
     const table = await this.tableRepo.findOneBy({ id });
